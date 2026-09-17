@@ -2107,4 +2107,60 @@ console.log("IPv4/IPv6 private-address classification ok");
 	console.log("Configured Ollama provider appears with user id ok");
 }
 
+{
+	const provider = {
+		id: "command-code",
+		displayName: "Command Code",
+		apiKeyEnv: "COMMAND_CODE_API_KEY",
+		baseURL: "https://api.commandcode.ai"
+	};
+	const config = validateAccountConfig({ monitors: {
+		"command-code": {
+			adapter: "command-code",
+			usageBaseURL: "https://api.commandcode.ai",
+			credentialRef: "COMMAND_CODE_API_KEY"
+		}
+	} });
+	const spec = resolveAccountSpec(provider, config);
+	assert.equal(spec.adapter, "command-code");
+	assert.equal(spec.mode, "subscription");
+	assert.equal(spec.apiKeyRef, "COMMAND_CODE_API_KEY");
+	const calls = [];
+	const account = await queryAccount(spec, credentials({ COMMAND_CODE_API_KEY: "command-code-test-key" }), {
+		now: () => now,
+		fetch: async (url, init) => {
+			calls.push({ url: String(url), init });
+			if (String(url).endsWith("/alpha/billing/credits")) return jsonResponse({
+				credits: { monthlyCredits: 6, purchasedCredits: 2.5, freeCredits: 0.5 },
+				windowLimits: {
+					fiveHour: { used: 1.5, cap: 3, resetAt: "2026-08-15T05:00:00Z" },
+					weekly: { used: 8, cap: 18, resetAt: "2026-08-22T00:00:00Z" }
+				}
+			});
+			if (String(url).endsWith("/alpha/billing/subscriptions")) return jsonResponse({
+				success: true,
+				data: { planId: "pro", status: "active", currentPeriodEnd: "2026-09-01T00:00:00Z" }
+			});
+			throw new Error(`unexpected URL ${String(url)}`);
+		}
+	});
+	assert.equal(account.status, "ok");
+	assert.equal(account.mode, "subscription");
+	assert.equal(account.adapter, "command-code");
+	assert.equal(account.plan, "pro");
+	assert.equal(account.balance.remaining, 9);
+	assert.deepEqual(account.balance.breakdown, { monthly: 6, purchased: 2.5, free: 0.5 });
+	assert.deepEqual(account.windows.map((window) => [window.kind, window.usedPercent, window.remainingPercent, window.usedCredits, window.capCredits, window.resetsAt]), [
+		["session", 50, 50, 1.5, 3, "2026-08-15T05:00:00.000Z"],
+		["weekly", 44.4, 55.6, 8, 18, "2026-08-22T00:00:00.000Z"]
+	]);
+	assert.equal(calls.length, 2);
+	for (const call of calls) {
+		assert.equal(call.init.headers.authorization, "Bearer command-code-test-key");
+		assert.equal(call.init.headers["x-api-key"], "command-code-test-key");
+	}
+	assert.equal(JSON.stringify(account).includes("command-code-test-key"), false);
+	console.log("Command Code credits and rolling-window normalization ok");
+}
+
 console.log("ACCOUNT TESTS PASSED");

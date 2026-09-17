@@ -115,6 +115,7 @@ npx --yes github:Ychris12138/dsh-usage-stats --no-enable
 | New API | 余额 | provider 推理 Token | `/api/usage/token/` |
 | Sub2API / Passion | 自动判别 | provider `apiKeyEnv` | `/v1/usage` |
 | Sub2API 面板（真实） | 余额 | provider 推理 Token | `/user/balance`（复用 apiKey） |
+| Command Code | credits + 滚动窗口 | `COMMAND_CODE_API_KEY` | `/alpha/billing/credits`、`/alpha/billing/subscriptions` |
 | General / Declarative | 余额或订阅 | 配置中的 credential ref | 受限 GET + JSON |
 
 没有公开账户接口的供应商仍会正常统计 Token；账户卡片会明确显示“不支持”，不会猜测余额。
@@ -227,6 +228,22 @@ Z.ai 全球区使用 `api.z.ai`，中国区使用 `open.bigmodel.cn`。MiniMax �
 <details>
 <summary><strong>展开 monitor 配置示例</strong></summary>
 
+Command Code 使用显式的原生账户适配器。它读取当前 CLI 使用的 credits、5 小时窗口、周窗口和订阅周期；只保存 credential 引用，不读取 `~/.commandcode/auth.json`：
+
+```yaml
+# ~/.dsh/profiles/web/cordis.patch.yml
+- id: usage-stats
+  name: "@ychris12138/dsh-usage-stats"
+  config:
+    monitors:
+      command-code:
+        adapter: command-code
+        usageBaseURL: https://api.commandcode.ai
+        credentialRef: COMMAND_CODE_API_KEY
+```
+
+`/alpha/billing/*` 是 Command Code CLI 的原生账户接口，不是当前 Provider API 文档中的模型推理接口；如果上游变更该接口，账户卡会显示不可用，不会阻止 DSH 启动。Command Code 的 Token 用量仍来自 DSH provider 事件，账户 adapter 只负责 credits 和窗口查询。
+
 New API 默认用 provider 推理 Token 查询 `/api/usage/token/`，并从 `/api/status` 读取实例自己的 `quota_per_unit`：
 
 ```yaml
@@ -309,7 +326,7 @@ Passion（provider id 为 `passion` 或域名为 `*.passionapi.com`）会自动�
 
 </details>
 
-支持的 adapter：`deepseek-balance`、`openrouter-balance`、`moonshot-balance`、`zai-balance`、`new-api`、`sub2api`、`sub2api-auth`、`general`、`opencode-go`、`zai-token-plan`、`kimi-token-plan`、`minimax-token-plan`、`declarative`。
+支持的 adapter：`deepseek-balance`、`openrouter-balance`、`moonshot-balance`、`zai-balance`、`new-api`、`sub2api`、`sub2api-auth`、`command-code`、`general`、`opencode-go`、`zai-token-plan`、`kimi-token-plan`、`minimax-token-plan`、`declarative`。
 
 `warning.warnBelow` 与 `warning.criticalBelow` 是余额绝对值阈值。具有总额度的余额和 Token Plan 会自动产生 `normal / warning / critical` 剩余比例状态（默认 30% / 10%）。
 
@@ -446,7 +463,7 @@ node scripts/check-balance.mjs
 
 ## 兼容性与致谢 / Compatibility & credits
 
-当前 npm stable 为 `0.3.3`；`v0.3.3` 的完整发布门禁见 [`docs/release-checklist.md`](docs/release-checklist.md)，变更摘要见 [`docs/release-notes-v0.3.3.md`](docs/release-notes-v0.3.3.md)。插件依赖 Harness 客户端模块加载器、Cordis 服务与 session persistence；Harness 预发布接口变化时可能需要同步适配。
+官方基线为 `0.3.3`（本 fork 在其上叠加 Command Code 适配，版本后缀 `-commandcode`）；`v0.3.3` 的完整发布门禁见 [`docs/release-checklist.md`](docs/release-checklist.md)，变更摘要见 [`docs/release-notes-v0.3.3.md`](docs/release-notes-v0.3.3.md)。插件依赖 Harness 客户端模块加载器、Cordis 服务与 session persistence；Harness 预发布接口变化时可能需要同步适配。
 
 持久化与活跃会话的读取按**能力探测**分支，不按版本号判断，因此 `>= 0.1.0-rc.6` 的支持范围未变：`0.1.3-alpha.1`–`0.1.5-rc.2` 用 `list()` 快照 + `open(id, "read")` 读句柄，`0.1.0-rc.7`–`0.1.2-rc.1` 用 `listSnapshots()` + `readFrom()`；活跃会话同时支持 `seq`/`snapshotEvents()` 与旧版 `events` 数组。`session/disposed` 在该范围内均存在（缺少它时已结束会话改由后台全量扫描补读）。缓存格式仍为 `version: 5`，旧缓存直接复用并原地重折叠。
 
