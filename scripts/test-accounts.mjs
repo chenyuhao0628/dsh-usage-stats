@@ -65,7 +65,6 @@ const deepseek = {
 		["openrouter-balance", "official"],
 		["moonshot-balance", "official"],
 		["zai-balance", "official"],
-		["orcarouter-balance", "official"],
 		["opencode-go", "official"],
 		["zai-token-plan", "official"],
 		["kimi-token-plan", "official"],
@@ -428,62 +427,6 @@ console.log("IPv4/IPv6 private-address classification ok");
 	assert.equal(account.balance.used, 25.75);
 	assert.equal(account.balance.total, 25.75);
 	console.log("OpenRouter management credential and zero balance contract ok");
-}
-
-{
-	const provider = { id: "orcarouter", displayName: "OrcaRouter", apiKeyEnv: "ORCAROUTER_API_KEY", baseURL: "https://api.orcarouter.ai/v1" };
-	const spec = resolveAccountSpec(provider, validateAccountConfig());
-	assert.equal(spec.adapter, "orcarouter-balance");
-	assert.equal(spec.mode, "balance");
-	const calls = [];
-	const account = await queryAccount(spec, credentials({ ORCAROUTER_API_KEY: "sk-orca-test" }), {
-		now: () => now,
-		fetch: async (url, init) => {
-			calls.push({ url: String(url), init });
-			assert.equal(init.headers.authorization, "Bearer sk-orca-test");
-			return jsonResponse({ object: "balance", unit: "USD", paid_balance: 1.25, free_credit: [{ model: "orcarouter/free", balance_usd: 6 }], promo_credits: [{ balance: 0.5, unit: "USD" }] });
-		}
-	});
-	assert.deepEqual(calls.map((call) => call.url), ["https://api.orcarouter.ai/v1/balance"]);
-	assert.equal(account.status, "ok");
-	assert.equal(account.balance.remaining, 7.75);
-	assert.equal(account.balance.used, void 0);
-	assert.equal(account.balance.total, void 0);
-	assert.equal(account.balance.currency, "USD");
-	assert.equal(account.balance.expiresAt, null, "an access_until value of zero means no expiry");
-	assert.equal(JSON.stringify(account).includes("sk-orca-test"), false, "OrcaRouter credentials must not cross the account snapshot boundary");
-	console.log("OrcaRouter wallet account adapter ok");
-}
-
-{
-	const provider = { id: "orcarouter", displayName: "OrcaRouter", apiKeyEnv: "ORCAROUTER_API_KEY", baseURL: "https://api.orcarouter.ai/v1" };
-	const spec = resolveAccountSpec(provider, validateAccountConfig());
-	const account = await queryAccount(spec, credentials({ ORCAROUTER_API_KEY: "sk-orca-test" }), {
-		now: () => now,
-		fetch: async () => jsonResponse({ object: "balance", unit: "USD", paid_balance: 0, free_credit: [{ balance_usd: 6 }], promo_credits: [] })
-	});
-	assert.equal(account.status, "ok");
-	assert.equal(account.balance.remaining, 6);
-	assert.equal(account.balance.unlimited, false);
-	console.log("OrcaRouter wallet account display semantics ok");
-}
-
-{
-	const provider = { id: "orcarouter", displayName: "OrcaRouter", apiKeyEnv: "ORCAROUTER_API_KEY", baseURL: "https://api.orcarouter.ai/v1" };
-	const spec = resolveAccountSpec(provider, validateAccountConfig());
-	const account = await queryAccount(spec, credentials({ ORCAROUTER_API_KEY: "sk-orca-test" }), {
-		now: () => now,
-		fetch: async (url) => {
-			if (String(url).endsWith("/balance")) return jsonResponse({}, 404);
-			if (String(url).endsWith("/subscription")) return jsonResponse({ soft_limit_usd: 12.5, hard_limit_usd: 12.5, system_hard_limit_usd: 12.5 });
-			return jsonResponse({ total_usage: 275 });
-		}
-	});
-	assert.equal(account.status, "ok");
-	assert.equal(account.balance.remaining, 9.75);
-	assert.equal(account.balance.used, 2.75);
-	assert.equal(account.balance.total, 12.5);
-	console.log("OrcaRouter OpenAI billing fallback account semantics ok");
 }
 
 {
@@ -2133,15 +2076,16 @@ console.log("IPv4/IPv6 private-address classification ok");
 			if (String(url).endsWith("/alpha/billing/credits")) return jsonResponse({
 				credits: { monthlyCredits: 6, purchasedCredits: 2.5, freeCredits: 0.5 },
 				windowLimits: {
-					fiveHour: { used: 1.5, cap: 3, resetAt: "2026-08-15T05:00:00Z" },
-					weekly: { used: 8, cap: 18, resetAt: "2026-08-22T00:00:00Z" }
+					fiveHour: { used: 0, cap: 3, resetAt: 0 },
+					weekly: { used: 8, cap: 18, resetAt: Date.UTC(2026, 7, 22) }
 				}
 			});
 			if (String(url).endsWith("/alpha/billing/subscriptions")) return jsonResponse({
 				success: true,
 				data: { planId: "pro", status: "active", currentPeriodEnd: "2026-09-01T00:00:00Z" }
 			});
-			throw new Error(`unexpected URL ${String(url)}`);
+			if (String(url).endsWith("/alpha/usage/summary")) return jsonResponse({ totalCost: 6, totalCredits: 6, periodBasis: "billing-period" });
+			throw new Error("unexpected URL " + String(url));
 		}
 	});
 	assert.equal(account.status, "ok");
@@ -2150,17 +2094,52 @@ console.log("IPv4/IPv6 private-address classification ok");
 	assert.equal(account.plan, "pro");
 	assert.equal(account.balance.remaining, 9);
 	assert.deepEqual(account.balance.breakdown, { monthly: 6, purchased: 2.5, free: 0.5 });
-	assert.deepEqual(account.windows.map((window) => [window.kind, window.usedPercent, window.remainingPercent, window.usedCredits, window.capCredits, window.resetsAt]), [
-		["session", 50, 50, 1.5, 3, "2026-08-15T05:00:00.000Z"],
-		["weekly", 44.4, 55.6, 8, 18, "2026-08-22T00:00:00.000Z"]
+	assert.deepEqual(account.windows.map((window) => [
+		window.kind, window.usedPercent, window.remainingPercent, window.usedCredits,
+		window.capCredits, window.started, window.resetsAt === void 0 ? null : window.resetsAt
+	]), [
+		["session", 0, 100, 0, 3, false, null],
+		["weekly", 44.4, 55.6, 8, 18, true, new Date(Date.UTC(2026, 7, 22)).toISOString()],
+		["monthly", 50, 50, 6, 12, true, "2026-09-01T00:00:00.000Z"]
 	]);
-	assert.equal(calls.length, 2);
+	assert.equal(account.windows[2].derived, true, "the monthly allowance is derived from spend plus remaining credits");
+	assert.deepEqual(calls.map((call) => call.url), [
+		"https://api.commandcode.ai/alpha/billing/credits",
+		"https://api.commandcode.ai/alpha/billing/subscriptions",
+		"https://api.commandcode.ai/alpha/usage/summary"
+	]);
 	for (const call of calls) {
 		assert.equal(call.init.headers.authorization, "Bearer command-code-test-key");
 		assert.equal(call.init.headers["x-api-key"], "command-code-test-key");
 	}
 	assert.equal(JSON.stringify(account).includes("command-code-test-key"), false);
-	console.log("Command Code credits and rolling-window normalization ok");
+	console.log("Command Code credits and 5h/weekly/monthly windows ok");
+}
+
+{
+	// A failing billing-period summary must not fabricate a monthly row.
+	const provider = { id: "command-code", displayName: "Command Code", apiKeyEnv: "COMMAND_CODE_API_KEY", baseURL: "https://api.commandcode.ai" };
+	const spec = resolveAccountSpec(provider, validateAccountConfig({ monitors: {
+		"command-code": { adapter: "command-code", usageBaseURL: "https://api.commandcode.ai", credentialRef: "COMMAND_CODE_API_KEY" }
+	} }));
+	const account = await queryAccount(spec, credentials({ COMMAND_CODE_API_KEY: "command-code-test-key" }), {
+		now: () => now,
+		fetch: async (url) => {
+			if (String(url).endsWith("/alpha/billing/credits")) return jsonResponse({
+				credits: { monthlyCredits: 6, purchasedCredits: 0, freeCredits: 0 },
+				windowLimits: {
+					fiveHour: { used: 1, cap: 3, resetAt: 1790358695038 },
+					weekly: { used: 8, cap: 18, resetAt: 1790358695038 }
+				}
+			});
+			if (String(url).endsWith("/alpha/billing/subscriptions")) return jsonResponse({ data: { planId: "pro", currentPeriodEnd: "2026-09-01T00:00:00Z" } });
+			return jsonResponse({}, 503);
+		}
+	});
+	assert.equal(account.status, "ok");
+	assert.deepEqual(account.windows.map((window) => window.kind), ["session", "weekly"]);
+	assert.equal(account.windows[0].started, true, "a numeric ms reset timestamp must survive as a real reset time");
+	console.log("Command Code monthly row degrades safely without the period summary ok");
 }
 
 console.log("ACCOUNT TESTS PASSED");

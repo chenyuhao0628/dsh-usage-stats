@@ -1,6 +1,6 @@
 # dsh-usage-stats
 
-<!-- stable-version: 0.3.3 -->
+<!-- stable-version: 0.3.3-commandcode.2 -->
 
 [![GitHub Release](https://img.shields.io/github/v/release/Ychris12138/dsh-usage-stats?display_name=tag&sort=semver&color=1f6feb)](https://github.com/Ychris12138/dsh-usage-stats/releases/latest)
 [![CI](https://github.com/Ychris12138/dsh-usage-stats/actions/workflows/ci.yml/badge.svg)](https://github.com/Ychris12138/dsh-usage-stats/actions/workflows/ci.yml)
@@ -14,9 +14,7 @@ Provider balances, subscription quotas, and token-usage analytics for the DeepSe
 
 > 展示图使用脱敏演示数据；插件不会把 API Key、Cookie、管理 PAT 或上游原始响应发送到浏览器。
 
-[![Powered by OrcaRouter](https://img.shields.io/badge/Powered_by-OrcaRouter-2563eb)](https://www.orcarouter.ai/ref/ref_13c34663d1527ac16963)
 
-> 🐋 OrcaRouter sponsors this project and is available as an optional OpenAI-compatible provider. [Learn more](https://www.orcarouter.ai/ref/ref_13c34663d1527ac16963) · Referral link.
 
 ## 一眼看懂 / At a glance
 
@@ -28,7 +26,7 @@ Provider balances, subscription quotas, and token-usage analytics for the DeepSe
 | 🔄 | 后台监测 | 账户按 active/detail/background 自适应刷新；间隔可配置或完全关闭，本地 Token 聚合保持独立运行 |
 | 🧩 | 可扩展适配器 | 支持 New API、Sub2API、通用余额模板，以及声明式 JSON Pointer 自定义查询 |
 | 📦 | 安全导出 | 提供 daily/session CSV 与版本化 JSON；Unicode、CSV 公式前缀和不完整费用均安全处理 |
-| 🔒 | 本机安全边界 | 数据端点仅接受回环 GET；OrcaRouter preset 仅由带防跨站请求头的显式回环 POST 写入；凭据只在服务端解析 |
+| 🔒 | 本机安全边界 | 数据端点仅接受回环 GET；凭据只在服务端解析 |
 
 界面支持中文和英文。浏览器只请求当前选择的 provider；账户自动刷新由服务端统一调度。手动刷新会更新用量、供应商列表，并强制刷新当前账户，不会批量强制请求其他供应商。
 
@@ -39,7 +37,7 @@ Provider balances, subscription quotas, and token-usage analytics for the DeepSe
 稳定版优先安装 npm 上的精确版本；这也是 DSH Desktop Market 使用的同一个包：
 
 ```bash
-dsh plugin --profile web add "@ychris12138/dsh-usage-stats@0.3.3"
+dsh plugin --profile web add "@ychris12138/dsh-usage-stats@0.3.3-commandcode.2"
 ```
 
 只有测试尚未发布的 source/RC 时才使用 `dsh plugin --profile web add "github:Ychris12138/dsh-usage-stats"`。GitHub `main` 可能领先 npm stable，不应把 source 安装当作市场安装验收。
@@ -105,7 +103,6 @@ npx --yes github:Ychris12138/dsh-usage-stats --no-enable
 | --- | --- | --- | --- |
 | DeepSeek | 余额 | provider `apiKeyEnv` | `/user/balance` |
 | OpenRouter | 余额 | `OPENROUTER_MANAGEMENT_KEY` | `/api/v1/credits` |
-| OrcaRouter | 余额 | `ORCAROUTER_API_KEY` | `/v1/balance`（旧部署回退到账单摘要接口） |
 | Moonshot / Kimi API | 余额 | provider `apiKeyEnv` | `/v1/users/me/balance` |
 | OpenCode Go | 订阅 | `OPENCODE_GO_API_KEY` 或本地 `auth.json` | `/zen/go/v1/usage` |
 | Z.ai / 智谱 | 订阅 | `ZAI_API_KEY` | Coding Plan quota/subscription |
@@ -115,7 +112,7 @@ npx --yes github:Ychris12138/dsh-usage-stats --no-enable
 | New API | 余额 | provider 推理 Token | `/api/usage/token/` |
 | Sub2API / Passion | 自动判别 | provider `apiKeyEnv` | `/v1/usage` |
 | Sub2API 面板（真实） | 余额 | provider 推理 Token | `/user/balance`（复用 apiKey） |
-| Command Code | credits + 滚动窗口 | `COMMAND_CODE_API_KEY` | `/alpha/billing/credits`、`/alpha/billing/subscriptions` |
+| Command Code | credits + 5 小时窗口/每周窗口/每月窗口 | `COMMAND_CODE_API_KEY` | `/alpha/billing/credits`、`/alpha/billing/subscriptions`、`/alpha/usage/summary` |
 | General / Declarative | 余额或订阅 | 配置中的 credential ref | 受限 GET + JSON |
 
 没有公开账户接口的供应商仍会正常统计 Token；账户卡片会明确显示“不支持”，不会猜测余额。
@@ -183,7 +180,6 @@ OPENROUTER_MANAGEMENT_KEY: sk-or-v1-your-management-key
 
 插件按 `total_credits - total_usage` 显示 OpenRouter 余额，并同时展示累计已用和总 credits。普通 Key 的 `/api/v1/key` 只描述单个 Key 的 spending limit，不会被当作账户余额。自定义引用可在 `monitors.openrouter` 中设置 `adapter: openrouter-balance` 与 `credentialRef`。
 
-OrcaRouter 优先读取其余额接口 `/v1/balance`，将 paid、free 和 promo credits 汇总为当前可用余额；旧部署没有该接口时，回退到官方文档提供的 OpenAI-compatible 账单摘要接口（订阅端点总额度 + usage 端点累计用量，按美分换算）。任一可用路径返回无法识别的数据时会显示明确的错误状态，不会把未知结果当作 0；无限额度哨兵值会显示为 `∞`，OrcaRouter 路由仍不参与本插件的模型价格估算。
 
 ### Token Plan 供应商
 
@@ -243,6 +239,8 @@ Command Code 使用显式的原生账户适配器。它读取当前 CLI 使用�
 ```
 
 `/alpha/billing/*` 是 Command Code CLI 的原生账户接口，不是当前 Provider API 文档中的模型推理接口；如果上游变更该接口，账户卡会显示不可用，不会阻止 DSH 启动。Command Code 的 Token 用量仍来自 DSH provider 事件，账户 adapter 只负责 credits 和窗口查询。
+
+账户卡分成三行：5 小时窗口 / 每周窗口 / 每月窗口，每行显示已用/上限、百分比和刷新倒计时；月额度是推算值（本计费周期已用 + 剩余月 credits），usage summary 不可用时该行不显示；5 小时窗口未启动时显示「首次调用后开始计时」而不是「已到重置时间」。
 
 New API 默认用 provider 推理 Token 查询 `/api/usage/token/`，并从 `/api/status` 读取实例自己的 `quota_per_unit`：
 
@@ -366,7 +364,7 @@ Constraints:
 
 Procedure:
 1. Confirm node, npx, and dsh are available.
-2. Prefer the exact npm stable used by Desktop Market: `dsh plugin --profile web add "@ychris12138/dsh-usage-stats@0.3.3"` (or update the existing scoped package).
+2. Prefer the exact npm stable used by Desktop Market: `dsh plugin --profile web add "@ychris12138/dsh-usage-stats@0.3.3-commandcode.2"` (or update the existing scoped package).
 3. Use `github:Ychris12138/dsh-usage-stats` only when I explicitly ask to test unreleased source/RC code.
 4. If dsh plugin is unavailable, use the compatible source installer only with my approval: `npx --yes github:Ychris12138/dsh-usage-stats`.
 5. Do not combine bundle installation with an existing manual dsh-usage-stats Cordis entry.
@@ -406,7 +404,7 @@ npx --yes github:Ychris12138/dsh-usage-stats --check
 - 自定义 monitor 默认要求 HTTPS、同源相对路径、手动 redirect 和 JSON 响应，body 上限为 1 MiB。
 - 发凭据前会筛选域名的 IPv4/IPv6 解析结果并固定一个允许的连接地址，优先使用公网地址；HTTPS 域名解析到 `198.18.0.0/15` 时可作为 Clash/Mihomo 等代理的 synthetic fake-IP 使用。字面量 `198.18/15`、其他私网/特殊地址仍默认拒绝，防止 DNS rebinding 绕过私网限制。
 - `usageBaseURL` 禁止内嵌 username/password；`Authorization`、`X-API-Key`、`API-Key` 等 header 必须由 credential ref 注入。
-- 九个数据端点仅接受 GET；OrcaRouter 集成路由的 GET 只返回布尔状态，POST 仅在用户点击后执行局部 settings mutation，并要求非简单自定义 action header。所有路由同时校验 peer socket 与 Host，支持 IPv4、IPv4-mapped IPv6 和 `[::1]:port`。
+- 九个数据端点仅接受 GET。所有路由同时校验 peer socket 与 Host，支持 IPv4、IPv4-mapped IPv6 和 `[::1]:port`。
 - 用量缓存 `~/.dsh/storages/usage-stats-cache.json` 只保存聚合 Token、会话 id、不透明 revision 与折叠游标，不保存提示词、回复或文件路径。
 
 本机反向代理会让插件看到代理自身的回环地址。请勿把端点经反向代理暴露到局域网或公网；确需代理时必须在代理层增加可靠认证与访问控制。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
@@ -438,10 +436,8 @@ Token 统计值来自 `assistant/chunk` 或 `assistant/message` 中 provider-rep
 | `GET` | `/api/usage-stats/export/daily.csv` | secret-free daily provider/model CSV |
 | `GET` | `/api/usage-stats/export/sessions.csv` | secret-free session CSV |
 | `GET` | `/api/usage-stats/export.json` | versioned usage、budget、pricing provenance 与 account-safe JSON |
-| `GET` | `/api/usage-stats/integrations/orcarouter` | 仅返回 OrcaRouter preset 是否可写/已存在的 secret-free 布尔状态 |
-| `POST` | `/api/usage-stats/integrations/orcarouter` | 用户明确请求后，以 revision-guarded path mutation 幂等加入 preset；要求 `application/json` 与 `X-DSH-Usage-Stats-Action: add-orcarouter` |
 
-除上述 OrcaRouter POST 外，非 GET 返回 `405`；非回环请求返回 `403`。API JSON 使用 `Cache-Control: no-cache`；下载响应使用 `Cache-Control: no-store` 与固定文件名。
+非 GET 返回 `405`；非回环请求返回 `403`。API JSON 使用 `Cache-Control: no-cache`；下载响应使用 `Cache-Control: no-store` 与固定文件名。
 
 ## 开发与验证 / Development
 
@@ -464,6 +460,7 @@ node scripts/check-balance.mjs
 ## 兼容性与致谢 / Compatibility & credits
 
 官方基线为 `0.3.3`（本 fork 在其上叠加 Command Code 适配，版本后缀 `-commandcode`）；`v0.3.3` 的完整发布门禁见 [`docs/release-checklist.md`](docs/release-checklist.md)，变更摘要见 [`docs/release-notes-v0.3.3.md`](docs/release-notes-v0.3.3.md)。插件依赖 Harness 客户端模块加载器、Cordis 服务与 session persistence；Harness 预发布接口变化时可能需要同步适配。
+本 fork 的本地改动见 [`docs/command-code-fork-updates.md`](docs/command-code-fork-updates.md)。
 
 持久化与活跃会话的读取按**能力探测**分支，不按版本号判断，因此 `>= 0.1.0-rc.6` 的支持范围未变：`0.1.3-alpha.1`–`0.1.5-rc.2` 用 `list()` 快照 + `open(id, "read")` 读句柄，`0.1.0-rc.7`–`0.1.2-rc.1` 用 `listSnapshots()` + `readFrom()`；活跃会话同时支持 `seq`/`snapshotEvents()` 与旧版 `events` 数组。`session/disposed` 在该范围内均存在（缺少它时已结束会话改由后台全量扫描补读）。缓存格式仍为 `version: 5`，旧缓存直接复用并原地重折叠。
 

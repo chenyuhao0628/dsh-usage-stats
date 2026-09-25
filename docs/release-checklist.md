@@ -32,9 +32,12 @@ npm pack --json
 - [ ] Confirm existing account monitors remain compatible and no new provider/monitor is inserted into user configuration.
 - [ ] Confirm legacy `display.currentSessionPill: true` and `false` configurations both start successfully and neither registers composer UI.
 - [ ] Confirm a persisted provider selection survives browser refresh and DSH restart; removing that provider clears the saved id and uses the existing fallback.
-- [ ] Confirm OrcaRouter is added only through the explicit fresh-user synthetic Add action; startup performs no settings mutation and existing provider configuration is not overwritten.
-- [ ] Confirm OrcaRouter balance succeeds through `/v1/balance` or the compatible billing fallback, pricing stays unknown/null, and no credential value reaches the browser or export payloads.
 - [ ] Confirm unchanged persisted fallback logs read only from the folded cursor, appended events remain incremental, and truncation/rewrite still refolds from sequence 0 (#58/#57).
+
+- [ ] Command Code card shows the 5-hour, weekly and monthly rows with used/cap, percentage and refresh countdown.
+- [ ] An unstarted 5-hour window (`resetAt: 0`) renders the not-started note, never a due-reset state.
+- [ ] Confirm the monthly row is omitted (not guessed) when `/alpha/usage/summary` fails, and the other two rows still render.
+- [ ] Confirm the plugin registers nine GET routes and no settings-write route (no OrcaRouter integration).
 
 ## 4. Export and security
 
